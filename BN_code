@@ -1,0 +1,100 @@
+##load the package
+library(bnlearn)
+library(qgraph) 
+library(huge) #normalize
+library(forecast) #accuracy function 
+
+##load the datatable 
+A_hon <-read.csv(file.choose(), header=TRUE)
+A_hwal <-read.csv(file.choose(), header=TRUE)
+A_chim <-read.csv(file.choose(), header=TRUE)
+
+#Partitioning the data to traing and test data. (0.75 train :0.25 test)
+#가. 혼효. 
+smp_siz = floor(0.75*nrow(A_hon))
+set.seed(123)
+train_ind = sample(seq_len(nrow(A_hon)),size = smp_siz)
+A_hon_train =A_hon[train_ind,]
+A_hon_test=A_hon[-train_ind,]
+write.csv(A_hon_train, "A_hon_train.csv")
+write.csv(A_hon_test, "A_hon_test.csv")
+#나. 활엽. 
+smp_siz = floor(0.75*nrow(A_hwal))
+set.seed(123)
+train_ind = sample(seq_len(nrow(A_hwal)),size = smp_siz)
+A_hwal_train =A_hwal[train_ind,]
+A_hwal_test=A_hwal[-train_ind,]
+write.csv(A_hwal_train, "A_hwal_train.csv")
+write.csv(A_hwal_test, "A_hwal_test.csv")
+#다. 침엽. 
+smp_siz = floor(0.75*nrow(A_chim))
+set.seed(123)
+train_ind = sample(seq_len(nrow(A_chim)),size = smp_siz)
+A_chim_train =A_chim[train_ind,]
+A_chim_test=A_chim[-train_ind,]
+write.csv(A_chim_train, "A_chim_train.csv")
+write.csv(A_chim_test, "A_chim_test.csv")
+
+#normalize the selected data 
+temp1 <- list.files(pattern="*.csv")
+x <- lapply(temp1, read.csv, header=TRUE)
+x_apply3 <- lapply(x, huge.npn)
+write.csv(x_apply3[[1]], "test2.csv") #check the file. 
+#subset the data again. 
+selection <- c("EVIavg","FD","GSL","HR","HW","RX5","SDII","SPEI12","SU","LC2")
+A_subset <- lapply(x_apply3, function(x) subset(x[,selection]))
+
+#베이지안 네트워크 whitelist 설정 
+Whitelist_re <- matrix(c(
+  "FD","EVIavg",
+  "GSL","EVIavg",
+  "HR","EVIavg",
+  "HW","EVIavg",
+  "RX5","EVIavg",
+  "SDII","EVIavg",
+  "SPEI12","EVIavg",
+  "SU","EVIavg",
+  "LC2","EVIavg") ,,2,byrow=TRUE)
+colnames(Whitelist_re)<-c("from","to")
+Whitelist_re
+
+#베이지안 네트워크 구동. 
+hc_chim_train <- mmhc(a_chim_train, whitelist = Whitelist_re, blacklist = NULL)
+bnlearn:::print.bn(mmhc_chim_train)
+plot(mmhc_chim_train)
+Labels <- c("EVIavg","FD","GSL","HR","HW","RX5","SDII","SPEI12","SU","LC2")
+graph_chim_train <- qgraph(mmhc_chim_train, nodeNames=Labels, legend.cex=0.5)
+fit_chim_train <- bn.fit(mmhc_chim_train, a_chim_train)
+fit_chim_train$EVIavg
+fit_chim_train
+
+mmhc_hon_train <- mmhc(a_hon_train, whitelist = Whitelist_re, blacklist = NULL)
+bnlearn:::print.bn(mmhc_hon_train)
+plot(mmhc_hon_train)
+graph_hon_train <- qgraph(mmhc_hon_train, nodeNames=Labels, legend.cex=0.5)
+fit_hon_train <- bn.fit(mmhc_hon_train, a_hon_train)
+fit_hon_train$EVIavg
+fit_hon_train
+
+mmhc_hwal_train <- mmhc(a_hwal_train, whitelist = Whitelist_re, blacklist = NULL)
+bnlearn:::print.bn(mmhc_hwal_train)
+plot(mmhc_hwal_train)
+graph_hwal_train <- qgraph(mmhc_hwal_train, nodeNames=Labels, legend.cex=0.5)
+fit_hwal_train <- bn.fit(mmhc_hwal_train, a_hwal_train)
+fit_hwal_train$EVIavg
+fit_hwal_train
+
+##conduct boot to check the robustness. 
+boot_chim <- boot.strength(a_chim_train, R=500, algorithm="mmhc",
+                        algorithm.args=list(whitelist = Whitelist_re, blacklist = NULL))
+boot_chim
+
+
+boot_hwal <- boot.strength(a_hwal_train, R=500, algorithm="mmhc",
+                           algorithm.args=list(whitelist = Whitelist_re, blacklist = NULL))
+boot_hwal
+
+
+boot_hon <- boot.strength(a_hon_train, R=500, algorithm="mmhc",
+                           algorithm.args=list(whitelist = Whitelist_re, blacklist = NULL))
+boot_hon
